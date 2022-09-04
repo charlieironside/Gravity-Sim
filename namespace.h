@@ -31,11 +31,12 @@ namespace functions {
 	struct planet {
 		glm::vec3 pos = GLM_NULL;
 		float colour[3]{0,0,0}, radius = 0;
-		int mass = 0;
+		float mass = 0;
 		bool lightSource = false;
 		char name[512] = "";
 	};
 
+	// called before placing planet to ensure each variable has a value
 	void checkPlanet(planet* pList, planet p) {
 		// check each value of p has been filled in
 		if (p.pos == GLM_NULL ||
@@ -44,6 +45,20 @@ namespace functions {
 			p.name == "")
 			printf("ERROR WITH PLANET VALUES\n");
 
+	}
+
+	// find coordinates of planet on simulation plane
+	// camera position, mouse x coordinate, mouse y coordinate
+	glm::vec3 planetPlacementCoordinates(glm::vec3 camPos, float mx, float my) {
+		// line x in terms of z and y in terms of z
+		line xz, yz;
+		xz.c = camPos.z;
+		yz.c = camPos.z;
+		// solve gradient of line with dy/dx
+		mx - camPos.x != 0 ? xz.m = (mx - camPos.x) / -camPos.z: xz.m = 0;
+		my - camPos.y != 0 ? yz.m = (my - camPos.y) / -camPos.z : yz.m = 0;
+
+		return glm::vec3(xz.m * (0) + xz.c, yz.m * (0) + yz.c, 0);
 	}
 
 	typedef glm::vec3 Triangle[3];

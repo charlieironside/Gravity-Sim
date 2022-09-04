@@ -19,6 +19,8 @@
 #include "namespace.h"
 
 using namespace functions;
+#define _simWidth 7.5
+#define _simHeight 4.2
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
@@ -29,7 +31,7 @@ const int SCRN_WIDTH = 1920, SCRN_HEIGHT = 1080;
 bool firstMouse = true;
 float lastX = 0, lastY = 0;
 float radius = 1;
-CameraClass camera(glm::vec3(0, 0, 2));
+CameraClass camera(glm::vec3(0, 0, 1));
 
 float deltaTime, lastFrame = 0, currentFrame;
 glm::vec3 lightPosition = glm::vec3(0, 0, 0), lightColour = glm::vec3(1, 0.95, 0.5);
@@ -97,7 +99,7 @@ int main() {
 	glEnable(GL_BLEND);
 
 	Shader shaders("vertex.GLSL", "fragment.GLSL");
-	Shader selectionShaders("transV.GLSL", "transF.GLSL");
+	Shader holoShader("tVertex.GLSL", "tFragment.GLSL");
 
 	unsigned int VBO, lineVBO, VAO, lineVAO;
 	glGenVertexArrays(1, &VAO);
@@ -116,8 +118,6 @@ int main() {
 	glm::mat4 projection = glm::perspective(glm::radians(camera.ZOOM), (float)SCRN_WIDTH / (float)SCRN_HEIGHT, 0.1f, 100.0f);
 	glm::mat4 view = camera.GetViewMatrix();
 
-	float simWidth = ((camera.Position.z) * tan(camera.ZOOM)) / 2;
-
 	// imgui boilerplate
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
@@ -130,6 +130,7 @@ int main() {
 
 	planet p;
 	p.pos = glm::vec3(0, 1, -2);
+	glm::vec3 v = glm::vec3(0);
 
 	while (!glfwWindowShouldClose(window)) {
 		currentFrame = glfwGetTime();
@@ -172,7 +173,6 @@ int main() {
 			glDrawArrays(GL_TRIANGLES, 0, vertices.size());
 		}
 
-
 		// draw ui to screen
 		// tell imgui its new frame
 		ImGui_ImplOpenGL3_NewFrame();
@@ -183,8 +183,8 @@ int main() {
 
 		ImGui::ColorPicker3("Planet colour", p.colour);
 		ImGui::InputText("Planet name", p.name, 512);
-		ImGui::InputFloat("Planet Radius", &p.radius);
-		ImGui::InputInt("Planet Mass", &p.mass);
+		ImGui::SliderFloat("Planet Radius", &p.radius, 1, 10);
+		ImGui::SliderFloat("Planet Mass", &p.mass, 1, 10);
 		ImGui::Checkbox("Light Source", &p.lightSource);
 
 		ImGui::Button("Add planet");
@@ -193,21 +193,21 @@ int main() {
 			
 		// render transparent planet if user is choosing position of new planet
 		if (choosePlanetPos) {
+			holoShader.use();
+
 			//selectionShaders.use();
-			model = glm::mat4(1);
 			glfwGetCursorPos(window, &mxpos, &mypos);
 			glfwGetWindowSize(window, &scrnX, &scrnY);
-			float xyRatio = scrnX / scrnY;
+			model = glm::mat4(1);
 			// normalized mouse coords								  // *2 to scale from -1 to 1
-			mxpos /= scrnX; mypos /= scrnY; mxpos -= 0.5; mypos -= 0.5; mxpos *= 2; mypos *= 2;
-			model = glm::scale(model, glm::vec3(0.1, 0.1, 0.1));
-			model = glm::translate(model, glm::vec3((mxpos * simWidth), (-mypos * simWidth) * xyRatio, 0));
-
-			printf("%f %f\n", (float)mxpos, (float)mypos);
-
-			shaders.setMat4("model", model);
-			shaders.setMat4("view", view);
-			shaders.setMat4("proj", projection);
+			mxpos /= scrnX; mypos /= scrnY; mxpos -= 0.5; mypos -= 0.5; mxpos *= 2; mypos *= -2;
+			model = glm::scale(model, glm::vec3(0.2, 0.2, 0.2));
+			model = glm::translate(model, glm::vec3(mxpos * _simWidth, mypos * _simHeight, 0));
+			
+			holoShader.setMat4("model", model);
+			holoShader.setMat4("view", view);
+			holoShader.setMat4("proj", projection);
+			holoShader.setVec4("colour", glm::vec4(p.colour[0], p.colour[1], p.colour[2], 0.75));
 
 			glBindVertexArray(VAO);
 			glDrawArrays(GL_TRIANGLES, 0, vertices.size());
