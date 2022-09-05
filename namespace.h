@@ -30,7 +30,7 @@ struct line {
 namespace functions {
 	struct planet {
 		glm::vec3 pos = GLM_NULL;
-		float colour[3]{0,0,0}, radius = 0;
+		float colour[3]{0,0,0};
 		float mass = 0;
 		bool lightSource = false;
 		char name[512] = "";
@@ -40,7 +40,6 @@ namespace functions {
 	void checkPlanet(planet* pList, planet p) {
 		// check each value of p has been filled in
 		if (p.pos == GLM_NULL ||
-			p.radius == 0 ||
 			p.mass == 0 ||
 			p.name == "")
 			printf("ERROR WITH PLANET VALUES\n");
