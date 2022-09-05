@@ -7,26 +7,26 @@ struct line {
 
 // Returns true if point falls between two lines
 bool linearSolver(line eq1, line eq2, vec2 p) {
-	if (eq1.m * p.x > p.y) {
+	if (eq1.m * p.x + eq1.c > p.y) {
 		if (eq2.m * p.x < p.y)
 			return true;
 
-		else if (eq2.m * p.x > p.y)
+		else if (eq2.m * p.x + eq2.c > p.y)
 			return false;
 	}
 
-	else if (eq1.m * p.x < p.y) {
+	else if (eq1.m * p.x + eq1.c < p.y) {
 		if (eq2.m * p.x > p.y)
 			return true;
 
-		else if (eq2.m * p.x < p.y)
+		else if (eq2.m * p.x * eq2.c < p.y)
 			return false;
 	}
 
-	else if (eq1.m * p.x == p.y)
+	else if (eq1.m * p.x + eq1.c == p.y)
 		return true;
 
-	else if (eq2.m * p.x == p.y)
+	else if (eq2.m * p.x + eq2.c == p.y)
 		return true;
 };
 
@@ -45,9 +45,7 @@ uniform float cShadow[2];
 
 void main() {
 	
-	//if (!lightSource){
-	if (false) {
-
+	if (!lightSource) {
 		bool inShadow = false;
 		for (int i = 0; i < shadowSize; i += 2) {
 			line aLine, bLine;

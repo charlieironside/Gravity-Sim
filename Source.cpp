@@ -40,7 +40,7 @@ planet* planets;
 std::vector<line>shadowLines;
 
 // gui variables
-bool choosePlanetPos = false;
+bool choosePlanetPos = false, positionChoosen = false;
 // mouse position
 double mxpos, mypos;
 
@@ -50,6 +50,8 @@ int main() {
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+	// disable window resize
+	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 	// Remove frap cap
 	glfwSwapInterval(0);
 
@@ -183,25 +185,31 @@ int main() {
 
 		ImGui::ColorPicker3("Planet colour", p.colour);
 		ImGui::InputText("Planet name", p.name, 512);
-		ImGui::SliderFloat("Planet Radius", &p.radius, 1, 10);
 		ImGui::SliderFloat("Planet Mass", &p.mass, 1, 10);
 		ImGui::Checkbox("Light Source", &p.lightSource);
 
 		ImGui::Button("Add planet");
-		if (ImGui::Button("Choose Planet Position"))
+		if (ImGui::Button("Choose Planet Position")) {
 			choosePlanetPos = true;
+			positionChoosen = false;
+		}
 			
 		// render transparent planet if user is choosing position of new planet
 		if (choosePlanetPos) {
 			holoShader.use();
 
-			//selectionShaders.use();
-			glfwGetCursorPos(window, &mxpos, &mypos);
-			glfwGetWindowSize(window, &scrnX, &scrnY);
+			if (!positionChoosen) {
+				glfwGetCursorPos(window, &mxpos, &mypos);
+				glfwGetWindowSize(window, &scrnX, &scrnY);
+				// normalized mouse coords								 // *2 to scale from -1 to 1
+				mxpos /= scrnX; mypos /= scrnY; mxpos -= 0.5; mypos -= 0.5; mxpos *= 2; mypos *= -2;
+			}
+
+			if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_1) == GLFW_PRESS && !positionChoosen)
+				positionChoosen = true;
+
 			model = glm::mat4(1);
-			// normalized mouse coords								  // *2 to scale from -1 to 1
-			mxpos /= scrnX; mypos /= scrnY; mxpos -= 0.5; mypos -= 0.5; mxpos *= 2; mypos *= -2;
-			model = glm::scale(model, glm::vec3(0.2, 0.2, 0.2));
+			model = glm::scale(model, glm::vec3(0.1, 0.1, 0.1));
 			model = glm::translate(model, glm::vec3(mxpos * _simWidth, mypos * _simHeight, 0));
 			
 			holoShader.setMat4("model", model);
