@@ -13,7 +13,7 @@
 #define variable(a, b, c) (a * b * c)
 
 // NULL for vec3
-#define GLM_NULL glm::vec3(0, 0, -100000)
+#define GLM_NULL glm::vec3(-1000, -1000, -1000)
 
 #define _a_ (m + 1)
 #define _b_ (-a + variable(2, m, c) - variable(2, m, b))
@@ -28,116 +28,74 @@ struct line {
 };
 
 namespace functions {
-	struct planet {
+	// generates an angle to rotate a matrix based on height and width coordinates
+	float generateAngle(float mx, float my) {
+		// top left quater
+		if (mx <= 0 && my >= 0) {
+			return atan(mx / my);
+		}
+		// top right quater
+		if (mx >= 0 && my >= 0) {
+			return atan(mx / my) + 1.5;
+		}
+		// bottom left quater
+		if (mx <= 0 && my <= 0) {
+			return atan(mx / my) + 1.;
+		}
+		// bottom right quater
+		if (mx >= 0 && my <= 0) {
+			return atan(mx / my) + 1;
+		}
+	}
+
+	class planet {
+	public:
 		glm::vec3 pos = GLM_NULL;
-		float colour[3]{0,0,0};
-		float mass = 0;
-		bool lightSource = false;
-		char name[512] = "";
+		// velocity is added per frame so its essentially acceleration
+		glm::vec3 velocity = glm::vec3(0);
+		float colour[3]{1,1,1};
+		float mass = 1;
+
+		// function to reset planets values to nulls
+		void reset() {
+			pos = GLM_NULL;
+			colour[0] = 0; colour[1] = 0; colour[2] = 0;
+			mass = 0;
+			//memset(name, 0, sizeof(name));
+		}
 	};
 
 	// called before placing planet to ensure each variable has a value
-	void checkPlanet(planet* pList, planet p) {
+	// returns true if checks pass
+	bool checkPlanet(planet p) {
 		// check each value of p has been filled in
-		if (p.pos == GLM_NULL ||
-			p.mass == 0 ||
-			p.name == "")
-			printf("ERROR WITH PLANET VALUES\n");
+		if (p.pos == GLM_NULL) {
+			return false;
+		}
 
-	}
-
-	// find coordinates of planet on simulation plane
-	// camera position, mouse x coordinate, mouse y coordinate
-	glm::vec3 planetPlacementCoordinates(glm::vec3 camPos, float mx, float my) {
-		// line x in terms of z and y in terms of z
-		line xz, yz;
-		xz.c = camPos.z;
-		yz.c = camPos.z;
-		// solve gradient of line with dy/dx
-		mx - camPos.x != 0 ? xz.m = (mx - camPos.x) / -camPos.z: xz.m = 0;
-		my - camPos.y != 0 ? yz.m = (my - camPos.y) / -camPos.z : yz.m = 0;
-
-		return glm::vec3(xz.m * (0) + xz.c, yz.m * (0) + yz.c, 0);
+		return true;
 	}
 
 	typedef glm::vec3 Triangle[3];
 
-	// Generates shadow
-	void shadowSolver(glm::vec2 lightPos, glm::vec2 obstruction, std::vector<line>&vec, float r, bool firstRun) {
-		line perpindicularLine;
-		line shadow[2];
-
-		glm::vec2 outerPoints[2];
-
-		float lightToObstructionGradient;
-		float perpindicularGradient;
-		
-		// ensure denomenator (delta x) does not equal 0
-		lightPos.x - obstruction.x != 0 ? lightToObstructionGradient = lightToObstructionGradient = (lightPos.y - obstruction.y) / (lightPos.x - obstruction.x) : lightToObstructionGradient = 0;
-		perpindicularGradient = -1 / lightToObstructionGradient;
-
-		perpindicularLine.c = -perpindicularGradient * obstruction.x + obstruction.y;
-
-		// (x - a)^2 + (x - b)^2 - r^2 = 0
-		float a = obstruction.x, b = obstruction.y;
-		float m = perpindicularGradient, c = perpindicularLine.c;
-
-		// Find points on outer edges of circle
-		// Solve intersections between line and circle
-		outerPoints[0].x = (-_b_ + sqrt(squared(_b_) - variable(4, _a_, _c_))) /
-								(variable(2, a, c));
-		outerPoints[1].x = (-_b_ - sqrt(squared(_b_) - variable(4, _a_, _c_))) /
-								(variable(2, a, c));
-
-		// Gradient of line from light to outer points
-		lightPos.x - outerPoints[0].x != 0 ? shadow[0].m = (lightPos.y - outerPoints[0].y) / (lightPos.x - outerPoints[0].x) : shadow[0].m = 0;
-		lightPos.x - outerPoints[1].x != 0 ? shadow[1].m = (lightPos.y - outerPoints[1].y) / (lightPos.x - outerPoints[1].x) : shadow[1].m = 0;
-
-		// y intercept
-		shadow[0].c = -shadow[0].m * outerPoints[0].x + outerPoints[0].y;
-		shadow[1].c = -shadow[1].m * outerPoints[1].x + outerPoints[1].y;
-
-		if (firstRun)
-			vec.clear();
-		vec.push_back(shadow[0]);
-		vec.push_back(shadow[1]);
-	}
-
-	void shaderInputs (
+	void shaderInputs(
 		Shader& shader,
 		glm::mat4 model,
-		glm::mat4 projection,
 		glm::mat4 view,
-		glm::vec3 viewPos,
-		glm::vec3 lightColour,
-		glm::vec3 lightPos,
-		glm::vec3 baseColour,
-		bool lightSource,
-		std::vector<line>shadow)
+		glm::mat4 proj,
+		// object light colour
+		glm::vec4 colour,
+		// background light colour
+		glm::vec3 lColour,
+		// dont blend colours of force vectors
+		bool blendColours)
 	{
 		shader.setMat4("model", model);
 		shader.setMat4("view", view);
-		shader.setMat4("proj", projection);
-
-		shader.setVec3("viewPos", viewPos);
-		shader.setVec3("lightColour", lightColour);
-		shader.setVec3("lightPos", lightPos);
-		shader.setVec3("ambient", baseColour);
-		shader.setBool("lightSource", lightSource);
-
-		const char* mName = "mShadow";
-		const char* cName = "cShadow";
-		
-		std::vector<float>mShadow;
-		std::vector<float>cShadow;
-		//for (int i = 0; i < shadow.size(); i++) {
-		//	mShadow.push_back(shadow[i].m);
-		//	cShadow.push_back(shadow[i].c);
-		//}
-
-		//glUniform1fv(glGetUniformLocation(shader.ID, mName), mShadow.size(), &mShadow[0]);
-		//glUniform1fv(glGetUniformLocation(shader.ID, cName), cShadow.size(), &cShadow[0]);
-		//shader.setInt("shadowSize", shadow.size());
+		shader.setMat4("proj", proj);
+		shader.setVec4("colour", colour);
+		shader.setVec3("lightColour", lColour);
+		shader.setBool("blend", blendColours);
 	}
 
 	// Finds midpoint of one side of the triangle, returns vec3 of midpoint
@@ -158,6 +116,59 @@ namespace functions {
 			vertices[i] /= vectorLength;
 			vertices[i + 1] /= vectorLength;
 			vertices[i + 2] /= vectorLength;
+		}
+	}
+
+	// finds length of a vector
+	inline float hypo(glm::vec3 dist) {
+		// pythag
+		return sqrt(pow(dist.x, 2) + pow(dist.y, 2));
+	}
+
+	// apply a force to a planet
+	// planet refrence, force to apply, delta time, time step
+	void applyForce(planet& p, glm::vec3 dir, float force, float dt, float ts) {
+		p.velocity += (force * glm::normalize(dir)) / p.mass;
+		//printf("vel: %f %f %f\n", p.velocity.x, p.velocity.y, p.velocity.z);
+		p.pos += p.velocity * dt * ts;
+	}
+
+	// check collisions of all planets
+	void checkCollisions(std::vector<planet>& p, float dt, float i, float j) {
+		// planets have radius of 1
+		if (hypo(p[i].pos - p[j].pos) <= 2) {
+			// if theres a collision apply a force in the opposing direction of the planet
+			p[i].velocity *= -1;
+		}
+	}
+
+	// called once per frame to calculate physics
+	// planet array, sun, delta time, gravity strength, time step
+	void physics(std::vector<planet>& p, planet sun, float dt, float g, float ts) {
+		for (int i = 0; i < p.size(); i++) {
+			// force from center object
+			float gForce = (g / 100) * ((p[i].mass * sun.mass) / (hypo(p[i].pos) * hypo(p[i].pos))) * ts;
+			//printf("%f %f\n", p[i].pos.x, p[i].pos.y);
+			applyForce(p[i], -p[i].pos, gForce, dt, ts);
+
+			// check collision with sun
+			if (hypo(p[i].pos) <= 2) {
+				p[i].velocity *= -1;
+				// after a collision move object to surface of sun so planet wont get stuck inside sun between frames
+				p[i].pos = glm::normalize(p[i].pos) * 2.0f;
+			}
+
+			// loop through every other planet
+			for (int j = 0; j < p.size(); j++) {
+				// dont check for collision on the same planet
+				if (j != i) {
+					checkCollisions(p, dt, i, j);
+					// calculate x and y components of gravity force vector
+					gForce = g * ((p[i].mass * p[j].mass) / pow(hypo(p[i].pos - p[j].pos), 2));
+					// apply force to planet[i]
+					applyForce(p[i], p[j].pos, gForce, dt, ts);
+				}
+			}
 		}
 	}
 
