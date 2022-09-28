@@ -11,6 +11,7 @@
 #define squared(x) pow(x, 2)
 // acts as a 3 variable term
 #define variable(a, b, c) (a * b * c)
+#define pi 3.14159
 
 // NULL for vec3
 #define GLM_NULL glm::vec3(-1000, -1000, -1000)
@@ -28,23 +29,25 @@ struct line {
 };
 
 namespace functions {
-	// generates an angle to rotate a matrix based on height and width coordinates
+	// generates a RG colour value for starting velocity vector
+	// returns 2 values, x = red, y = green
+	glm::vec2 colourFunction(float x) {
+		return glm::vec2(
+			-log(x + 0.05) + (2 * sin(x + (pi / 3)) - 1.75),
+			-log(1.1 - x) + (2 * sin(x + (pi / 3)) - 1.75)
+		);
+	}
+
+	// generates an angle to rotate a matrix based on x and y inputs
+	// change in width, change in height
 	float generateAngle(float mx, float my) {
-		// top left quater
-		if (mx <= 0 && my >= 0) {
+		// top half
+		if (my >= 0) {
 			return atan(mx / my);
 		}
-		// top right quater
-		if (mx >= 0 && my >= 0) {
-			return atan(mx / my) + 1.5;
-		}
-		// bottom left quater
-		if (mx <= 0 && my <= 0) {
-			return atan(mx / my) + 1.;
-		}
-		// bottom right quater
-		if (mx >= 0 && my <= 0) {
-			return atan(mx / my) + 1;
+		// bottom half
+		if (my <= 0) {
+			return atan(mx / my) + glm::radians(180.0);
 		}
 	}
 
@@ -99,7 +102,7 @@ namespace functions {
 	}
 
 	// Finds midpoint of one side of the triangle, returns vec3 of midpoint
-	glm::vec3 findMidpoint(glm::vec3 s, glm::vec3 e) {
+	inline glm::vec3 findMidpoint(glm::vec3 s, glm::vec3 e) {
 		glm::vec3 result;
 
 		result.x = (s.x + e.x) / 2;
@@ -109,10 +112,17 @@ namespace functions {
 		return result;
 	}
 
+	// function that only normalizes x and y component of a vec3
+	void normalize(glm::vec3& v) {
+		float length = sqrt(pow(v.x, 2) + pow(v.y, 2));
+		v.x /= length;
+		v.y /= length;
+	}
+
 	// Simply normalizes each vertice
 	void circleGeneration(std::vector<float>& vertices) {
 		for (int i = 0; i < vertices.size(); i += 3) {
-			float vectorLength = sqrt((vertices[i] * vertices[i]) + (vertices[i + 1] * vertices[i + 1]) + (vertices[i + 2] * vertices[i + 2]));
+			float vectorLength = sqrt(pow(vertices[i], 2) + pow(vertices[i + 1], 2) + pow(vertices[i + 2], 2));
 			vertices[i] /= vectorLength;
 			vertices[i + 1] /= vectorLength;
 			vertices[i + 2] /= vectorLength;
@@ -147,7 +157,7 @@ namespace functions {
 	void physics(std::vector<planet>& p, planet sun, float dt, float g, float ts) {
 		for (int i = 0; i < p.size(); i++) {
 			// force from center object
-			float gForce = (g / 100) * ((p[i].mass * sun.mass) / (hypo(p[i].pos) * hypo(p[i].pos))) * ts;
+			float gForce = (g / 100) * ((p[i].mass * sun.mass) / (hypo(p[i].pos) * hypo(p[i].pos)));
 			//printf("%f %f\n", p[i].pos.x, p[i].pos.y);
 			applyForce(p[i], -p[i].pos, gForce, dt, ts);
 
