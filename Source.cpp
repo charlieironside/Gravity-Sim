@@ -43,8 +43,8 @@ float mouseGradient;
 std::vector<planet>planets;
 std::vector<line>shadowLines;
 
-// gui variables
-bool choosePlanetPos = false, positionChoosen = false;
+// variable to hold state of user choosing planet position
+bool choosePlanetPos = false, positionChoosen = false, velocityChoosen = false;
 // mouse position
 double mxpos, mypos;
 // stores state of pause of sim
@@ -60,6 +60,7 @@ void addPlanet(std::vector<planet>&p, planet toAdd) {
 	t.mass = toAdd.mass;
 	t.colour[0] = toAdd.colour[0]; t.colour[1] = toAdd.colour[1]; t.colour[2] = toAdd.colour[2];
 	t.pos = toAdd.pos;
+	t.velocity = toAdd.velocity;
 	// add temporary planet to vector
 	p.push_back(t);
 }
@@ -116,8 +117,6 @@ int main() {
 		return -1;
 	}
 
-	std::cout << glGetError << std::endl;
-
 	glEnable(GL_DEPTH_TEST);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_BLEND);
@@ -166,6 +165,14 @@ int main() {
 	glm::mat4 projection = glm::perspective(glm::radians(camera.ZOOM), (float)SCRN_WIDTH / (float)SCRN_HEIGHT, 0.1f, 100.0f);
 	glm::mat4 view = camera.GetViewMatrix();
 
+	// starting velocity of temporary planet
+	glm::vec3 temporaryVector;
+	// z component is vector magnitude
+	temporaryVector.z = 0;
+
+	// stores time after a click to compute a delay
+	float timeAtClick;
+
 	while (!glfwWindowShouldClose(window)) {
 		// calculate delta time
 		currentFrame = glfwGetTime();
@@ -205,6 +212,8 @@ int main() {
 			model = glm::scale(model, glm::vec3(0.05));
 			model = glm::translate(model, planets[i].pos);
 
+			printf("%f %f\n", planets[i].pos.x, planets[i].pos.y);
+
 			shaderInputs(shaders, model, view, projection,
 				glm::vec4(planets[i].colour[0], planets[i].colour[1], planets[i].colour[2], 1),
 				glm::vec3(sun.colour[0], sun.colour[1], sun.colour[2]),
@@ -229,11 +238,15 @@ int main() {
 		//ImGui::InputText("Planet name", temporaryPlanet.name, 512);
 		ImGui::Text("Planet Mass");
 		ImGui::SliderFloat("1 - 10", &temporaryPlanet.mass, 1, 10);
+		ImGui::Text("Starting Velocity");
+		ImGui::SliderFloat("0 - 10", &temporaryVector.z, 0, 10);
 
 		if (ImGui::Button("Choose Planet Position")) {
 			choosePlanetPos = true;
 			positionChoosen = false;
 		}
+		if (ImGui::Button("Reselect Starting Velocity"))
+			velocityChoosen = false;
 		addPlanetClicked = false;
 		if (ImGui::Button("Add Planet"))
 			addPlanetClicked = true;
@@ -266,10 +279,6 @@ int main() {
 		mxpos -= 0.5; mypos -= 0.5;
 		// *2 to scale from -1 to 1
 		mxpos *= 2; mypos *= -2;
-		// gradient of mouse coordinates
-		mouseGradient = mypos / mxpos;
-
-		printf("%f\n", glm::degrees(tan(mxpos/mypos));
 		
 		// render semi transparent planet if user is choosing position of new planet
 		if (choosePlanetPos) {
@@ -281,6 +290,7 @@ int main() {
 				temporaryPlanet.pos = glm::vec3(mxpos * _simWidth, mypos * _simHeight, 0);
 				// coordinate from -1 to 1 of placed planets position
 				normPlacedPosition.x = mxpos; normPlacedPosition.y = mypos;
+				timeAtClick = glfwGetTime();
 			}
 
 			model = glm::mat4(1);
@@ -302,9 +312,14 @@ int main() {
 			// once position is chossen draw arrow showing starting velocity
 			if (positionChoosen) {
 				// if Add Planet is clicked and all planet values are filled add the planet
-				if (addPlanetClicked && checkPlanet(temporaryPlanet)) {
+				if (addPlanetClicked && velocityChoosen && checkPlanet(temporaryPlanet)) {
 					choosePlanetPos = false;
 					positionChoosen = false;
+					normalize(temporaryVector);
+					// add velocity to temporary planet
+					temporaryPlanet.velocity.x = temporaryVector.x * temporaryVector.z;
+					temporaryPlanet.velocity.y = temporaryVector.y * temporaryVector.z;
+
 					// add new planet to planet vector
 					addPlanet(planets, temporaryPlanet);
 					// set flag to render planets as true
@@ -313,15 +328,26 @@ int main() {
 					temporaryPlanet.reset();
 				}
 
-				arrowShader.use();
+				if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_1) == GLFW_PRESS &&
+					glfwGetTime() - timeAtClick > 0.5) {
+					velocityChoosen = true;
+					temporaryVector.x = mxpos * _simWidth - temporaryPlanet.pos.x;
+					temporaryVector.y = mypos * _simHeight - temporaryPlanet.pos.y;
+				}
 
+				arrowShader.use();
+				// draw arrow for starting velocity
 				model = glm::mat4(1);
 				model = glm::scale(model, glm::vec3(0.05, 0.05, 0.05));
-				//model = glm::translate(model, temporaryPlanet.pos);
-				model = glm::rotate(model, generateAngle(mxpos, mypos), glm::vec3(0, 0, -1));
+				model = glm::translate(model, temporaryPlanet.pos);
+				// rotate arrow to point towards mouse
+				if (!velocityChoosen)
+					model = glm::rotate(model, generateAngle(mxpos * _simWidth - temporaryPlanet.pos.x, mypos * _simHeight - temporaryPlanet.pos.y), glm::vec3(0, 0, -1));
+				else
+					model = glm::rotate(model, generateAngle(temporaryVector.x, temporaryVector.y), glm::vec3(0, 0, -1));
 
 				shaderInputs(arrowShader, model, view, projection,
-					glm::vec4(0.8, 0.8, 0.8, 0.75), 
+					glm::vec4(colourFunction(temporaryVector.z / 10), 0, 0.75),
 					glm::vec3(sun.colour[0], sun.colour[1], sun.colour[2]),
 					false);
 
