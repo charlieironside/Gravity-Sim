@@ -33,12 +33,14 @@ namespace functions {
 	// returns 2 values, x = red, y = green
 	glm::vec2 colourFunction(float x) {
 		return glm::vec2(
+			// this line outputs the red value of function
 			-log(x + 0.05) + (2 * sin(x + (pi / 3)) - 1.75),
+			// this line outputs the green values of the function
 			-log(1.1 - x) + (2 * sin(x + (pi / 3)) - 1.75)
 		);
 	}
 
-	// generates an angle to rotate a matrix based on x and y inputs
+	// returns the angle the points to the x and y coordinates inputted
 	// change in width, change in height
 	float generateAngle(float mx, float my) {
 		// top half
