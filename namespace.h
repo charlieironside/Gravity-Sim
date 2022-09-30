@@ -11,6 +11,7 @@
 #define squared(x) pow(x, 2)
 // acts as a 3 variable term
 #define variable(a, b, c) (a * b * c)
+
 #define pi 3.14159
 
 // NULL for vec3
@@ -25,6 +26,7 @@ struct vec3 {
 };
 
 struct line {
+	// m = gradient of line, c = y intercept of line
 	float m, c;
 };
 
@@ -33,15 +35,13 @@ namespace functions {
 	// returns 2 values, x = red, y = green
 	glm::vec2 colourFunction(float x) {
 		return glm::vec2(
-			// this line outputs the red value of function
 			-log(x + 0.05) + (2 * sin(x + (pi / 3)) - 1.75),
-			// this line outputs the green values of the function
 			-log(1.1 - x) + (2 * sin(x + (pi / 3)) - 1.75)
 		);
 	}
 
-	// returns the angle the points to the x and y coordinates inputted
-	// change in width, change in height
+	// generates an angle to rotate a matrix based on x and y inputs
+	// args; change in width, change in height
 	float generateAngle(float mx, float my) {
 		// top half
 		if (my >= 0) {
@@ -58,14 +58,14 @@ namespace functions {
 		glm::vec3 pos = GLM_NULL;
 		// velocity is added per frame so its essentially acceleration
 		glm::vec3 velocity = glm::vec3(0);
-		float colour[3]{1,1,1};
+		float colour[3]{ 1,1,1 };
 		float mass = 1;
 
 		// function to reset planets values to nulls
 		void reset() {
 			pos = GLM_NULL;
 			colour[0] = 0; colour[1] = 0; colour[2] = 0;
-			mass = 0;
+			mass = 1;
 			//memset(name, 0, sizeof(name));
 		}
 	};
@@ -103,7 +103,7 @@ namespace functions {
 		shader.setBool("blend", blendColours);
 	}
 
-	// Finds midpoint of one side of the triangle, returns vec3 of midpoint
+	// finds midpoint of one side of the triangle, returns vec3 of midpoint
 	inline glm::vec3 findMidpoint(glm::vec3 s, glm::vec3 e) {
 		glm::vec3 result;
 
@@ -121,7 +121,7 @@ namespace functions {
 		v.y /= length;
 	}
 
-	// Simply normalizes each vertice
+	// normalizes each vertice inputed
 	void circleGeneration(std::vector<float>& vertices) {
 		for (int i = 0; i < vertices.size(); i += 3) {
 			float vectorLength = sqrt(pow(vertices[i], 2) + pow(vertices[i + 1], 2) + pow(vertices[i + 2], 2));
@@ -132,40 +132,40 @@ namespace functions {
 	}
 
 	// finds length of a vector
-	inline float hypo(glm::vec3 dist) {
+	inline float hypo(glm::vec2 dist) {
 		// pythag
 		return sqrt(pow(dist.x, 2) + pow(dist.y, 2));
 	}
 
 	// apply a force to a planet
-	// planet refrence, force to apply, delta time, time step
+	// args; planet refrence, direction, force to apply, delta time, time step
 	void applyForce(planet& p, glm::vec3 dir, float force, float dt, float ts) {
+		// f = ma
 		p.velocity += (force * glm::normalize(dir)) / p.mass;
-		//printf("vel: %f %f %f\n", p.velocity.x, p.velocity.y, p.velocity.z);
 		p.pos += p.velocity * dt * ts;
 	}
 
-	// check collisions of all planets
-	void checkCollisions(std::vector<planet>& p, float dt, float i, float j) {
-		// planets have radius of 1
-		if (hypo(p[i].pos - p[j].pos) <= 2) {
-			// if theres a collision apply a force in the opposing direction of the planet
-			p[i].velocity *= -1;
-		}
+	// calculates a rebound vector when planets hit
+	// args; velocity, moving planet, position of planet getting hit
+	void bounce(glm::vec3& vel, glm::vec2 p1, glm::vec2 p2) {
+		// normalize velocity vector
+		glm::vec2 normVel = glm::normalize(vel);
+		// dot product of normalized velocity and vector planet being hit to moving planet
+		float dot = glm::dot(glm::normalize(p1 - p2), glm::vec2(normVel));
+		vel = glm::vec3(dot * (p2 - p1) * hypo(vel) + glm::vec2(vel), 0);
 	}
 
 	// called once per frame to calculate physics
-	// planet array, sun, delta time, gravity strength, time step
+	// args; planet array, sun, delta time, gravity strength, time step
 	void physics(std::vector<planet>& p, planet sun, float dt, float g, float ts) {
 		for (int i = 0; i < p.size(); i++) {
 			// force from center object
 			float gForce = (g / 100) * ((p[i].mass * sun.mass) / (hypo(p[i].pos) * hypo(p[i].pos)));
-			//printf("%f %f\n", p[i].pos.x, p[i].pos.y);
 			applyForce(p[i], -p[i].pos, gForce, dt, ts);
 
 			// check collision with sun
 			if (hypo(p[i].pos) <= 2) {
-				p[i].velocity *= -1;
+				bounce(p[i].velocity, p[i].pos, glm::vec2(0));
 				// after a collision move object to surface of sun so planet wont get stuck inside sun between frames
 				p[i].pos = glm::normalize(p[i].pos) * 2.0f;
 			}
@@ -174,7 +174,10 @@ namespace functions {
 			for (int j = 0; j < p.size(); j++) {
 				// dont check for collision on the same planet
 				if (j != i) {
-					checkCollisions(p, dt, i, j);
+					// check collision
+					if (hypo(p[i].pos - p[j].pos) <= 2) {
+						bounce(p[i].velocity, p[i].pos, p[j].pos);
+					}
 					// calculate x and y components of gravity force vector
 					gForce = g * ((p[i].mass * p[j].mass) / pow(hypo(p[i].pos - p[j].pos), 2));
 					// apply force to planet[i]
@@ -184,8 +187,9 @@ namespace functions {
 		}
 	}
 
-	// Generates 4 smaller triangles inside a larger one
-	// Data vector is vertex data of triangle to split up, vertices is where the data is to be copied to
+	// takes in a triangle and splits it into 4 smaller triangles
+	// function recalls itself to split those 4 smaller triangles in to another 4 more smaller triangles
+	// args; the trianlge that should be split, the array of vertives to add new vertex data to, how many recursize calls to make
 	void triangleGeneration(std::vector<float>data, std::vector<float>& vertices, int iterations) {
 		iterations -= 1;
 
@@ -305,6 +309,7 @@ namespace functions {
 				nextTriangle.push_back(topTriangle[i].y);
 				nextTriangle.push_back(topTriangle[i].z);
 			}
+			// recursize call for top sub-triangle
 			triangleGeneration(nextTriangle, vertices, iterations);
 
 			nextTriangle.clear();
@@ -313,6 +318,7 @@ namespace functions {
 				nextTriangle.push_back(rightTriangle[i].y);
 				nextTriangle.push_back(rightTriangle[i].z);
 			}
+			// recursize call for right sub-triangle
 			triangleGeneration(nextTriangle, vertices, iterations);
 		}
 	}
